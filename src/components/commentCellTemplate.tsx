@@ -22,7 +22,7 @@ export class CommentCellTemplate implements CellTemplate<CommentTextCell> {
     getCompatibleCell(uncertainCell: Uncertain<CommentTextCell>): Compatible<CommentTextCell> {
         const text = getCellProperty(uncertainCell, "text", "string");
         const value = Number.NaN; // no numeric representation for text cells
-        return { ...uncertainCell, text, value, comment: (uncertainCell as any).comment ?? "" } as Compatible<CommentTextCell>;
+        return { ...uncertainCell, text, value, comment: (uncertainCell).comment ?? "" };
     }
 
     // handle key / pointer events - enable edit mode on typing, Enter or pointer (double click)
@@ -42,8 +42,8 @@ export class CommentCellTemplate implements CellTemplate<CommentTextCell> {
         return this.getCompatibleCell({
             ...cell,
             text: cellToMerge.text ?? cell.text,
-            comment: (cellToMerge as any).comment ?? cell.comment
-        } as Uncertain<CommentTextCell>);
+            comment: cellToMerge.comment ?? cell.comment
+        });
     }
 
     // render display OR editor when isInEditMode === true
@@ -75,7 +75,7 @@ export class CommentCellTemplate implements CellTemplate<CommentTextCell> {
                     onCellChanged(this.getCompatibleCell({ ...cell, text: e.currentTarget.value }), true)
                 }
                 onKeyDown={(e) => {
-                    const keyCode = (e as any).keyCode ?? 0;
+                    const keyCode = (e).keyCode ?? 0;
                     if (e.key === "Enter") {
                         onCellChanged(this.getCompatibleCell({ ...cell, text: (e.currentTarget as HTMLInputElement).value }), true);
                     } else if (e.key === "Escape") {

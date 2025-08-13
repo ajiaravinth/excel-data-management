@@ -87,7 +87,7 @@ function Home() {
   const [orderDetails, setOrderDetails] = useState<IOrderDetails[]>(getOrderDetails());
   const [columns, setColumns] = useState<Column[]>(getColumns());
   const [cellChangesIndex, setCellChangesIndex] = useState(() => -1);
-  const [cellChanges, setCellChanges] = useState<CellChange<TextCell>[][]>(() => []);
+  const [cellChanges] = useState<CellChange<TextCell>[][]>(() => []);
   // Track popover state
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
   const [commentPopover, setCommentPopover] = useState<{
@@ -113,7 +113,7 @@ function Home() {
       const orderIndex = Number(change.rowId);
       const fieldName = change.columnId as keyof IOrderDetails;
       const newCell = usePrevValue ? change.previousCell : change.newCell;
-      let newValue: any = newCell.text;
+      let newValue: number | string | Date = newCell.text;
 
       // Formatting
       if (fieldName === "order_date") {
