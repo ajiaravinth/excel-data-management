@@ -1,103 +1,344 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import React, { useState } from "react";
+import { ReactGrid, Column, Row, CellChange, TextCell, Id, MenuOption, SelectionMode } from "@silevis/reactgrid";
+import "@silevis/reactgrid/styles.css";
+import orders from "@/utils/data.json";
+import moment from "moment";
+import { CommentCellTemplate } from "@/components/commentCellTemplate";
+import { Popover, PopoverContent } from "@radix-ui/react-popover";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+interface IOrderDetails {
+  orderid: string;
+  order_date: Date;
+  region: string;
+  name: string;
+  item: string;
+  quantity: number;
+  unitcost: number;
+  total: number;
+  comment?: Partial<Record<keyof Omit<IOrderDetails, 'comment'>, string>> & Record<string, string>;
 }
+
+export interface CommentTextCell extends TextCell {
+  comment?: string;
+}
+
+const getOrderDetails = (): IOrderDetails[] => {
+  return orders.map(order => ({
+    ...order,
+    order_date: new Date(order.order_date),
+    quantity: Number(order.quantity),
+    unitcost: Number(order.unitcost),
+    total: Number(order.total)
+  }));
+};
+
+const getColumns = (): Column[] => [
+  { columnId: "orderid", width: 150, resizable: true },
+  { columnId: "order_date", width: 150, resizable: true },
+  { columnId: "region", width: 150, resizable: true },
+  { columnId: "name", width: 150, resizable: true },
+  { columnId: "item", width: 150, resizable: true },
+  { columnId: "quantity", width: 150, resizable: true },
+  { columnId: "unitcost", width: 150, resizable: true },
+  { columnId: "total", width: 150, resizable: true },
+
+];
+
+const headerRow: Row = {
+  rowId: "header",
+  cells: [
+    { type: "header", text: "Order ID" },
+    { type: "header", text: "Order Date" },
+    { type: "header", text: "Region" },
+    { type: "header", text: "Name" },
+    { type: "header", text: "Item" },
+    { type: "header", text: "Quantity" },
+    { type: "header", text: "Unit Cost" },
+    { type: "header", text: "Total" }
+  ]
+};
+
+const makeCommentCell = (text: string, comment?: string): CommentTextCell => ({
+  type: "text",
+  text,
+  comment
+});
+
+const getRows = (orders: IOrderDetails[]): Row[] => [
+  headerRow,
+  ...orders.map<Row>((order, idx) => ({
+    rowId: idx,
+    cells: [
+      makeCommentCell(order.orderid, order.comment?.orderid),
+      makeCommentCell(moment(order.order_date).format("DD MMM YYYY"), order.comment?.order_date),
+      makeCommentCell(order.region, order.comment?.region),
+      makeCommentCell(order.name, order.comment?.name),
+      makeCommentCell(order.item, order.comment?.item),
+      makeCommentCell(String(order.quantity), order.comment?.quantity),
+      makeCommentCell(String(order.unitcost), order.comment?.unitcost),
+      makeCommentCell(String(order.total), order.comment?.total)
+    ]
+  }))
+];
+
+function Home() {
+  const [orderDetails, setOrderDetails] = useState<IOrderDetails[]>(getOrderDetails());
+  const [columns, setColumns] = useState<Column[]>(getColumns());
+  const [cellChangesIndex, setCellChangesIndex] = useState(() => -1);
+  const [cellChanges, setCellChanges] = useState<CellChange<TextCell>[][]>(() => []);
+  // Track popover state
+  const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
+  const [commentPopover, setCommentPopover] = useState<{
+    rowIndex: number;
+    colId: keyof IOrderDetails;
+    oldValue: string;
+    newValue: string;
+  } | null>(null);
+
+  const [commentText, setCommentText] = useState("");
+
+  const rows = getRows(orderDetails);
+
+  const applyNewValue = (
+    changes: CellChange<TextCell>[],
+    prevOrders: IOrderDetails[],
+    usePrevValue: boolean = false,
+    commentsMap?: Record<string, string>
+  ): IOrderDetails[] => {
+    const updatedOrders = prevOrders.map(order => ({ ...order, comment: { ...order.comment } }));
+
+    changes.forEach(change => {
+      const orderIndex = Number(change.rowId);
+      const fieldName = change.columnId as keyof IOrderDetails;
+      const newCell = usePrevValue ? change.previousCell : change.newCell;
+      let newValue: any = newCell.text;
+
+      // Formatting
+      if (fieldName === "order_date") {
+        newValue = moment(new Date(newValue)).format("DD MMM YYYY");
+      } else if (["quantity", "unitcost", "total"].includes(fieldName)) {
+        newValue = Number(newValue);
+      }
+
+      // Apply value
+      (updatedOrders[orderIndex] as any)[fieldName] = newValue;
+
+      if (["quantity", "unitcost"].includes(fieldName as string)) {
+        updatedOrders[orderIndex].total =
+          +updatedOrders[orderIndex].quantity * +updatedOrders[orderIndex].unitcost;
+      }
+
+      // Add comment if provided from handleChanges
+      if (commentsMap && commentsMap[`${orderIndex}-${fieldName}`]) {
+        updatedOrders[orderIndex].comment = updatedOrders[orderIndex].comment || {};
+        updatedOrders[orderIndex].comment![fieldName] = commentsMap[`${orderIndex}-${fieldName}`];
+      }
+    });
+
+    return updatedOrders;
+  }
+
+  // Column Resize
+  const handleColumnResize = (ci: Id, width: number) => {
+    setColumns((prevColumns) => {
+      const columnIndex = prevColumns.findIndex(el => el.columnId === ci);
+      const resizedColumn = prevColumns[columnIndex];
+      const updatedColumn = { ...resizedColumn, width };
+      prevColumns[columnIndex] = updatedColumn;
+      return [...prevColumns];
+    });
+  }
+
+  // contextMenu
+  const simpleHandleContextMenu = (
+    selectedRowIds: Id[],
+    selectedColIds: Id[],
+    selectionMode: SelectionMode,
+    menuOptions: MenuOption[]
+  ): MenuOption[] => {
+    if (selectionMode === "row") {
+      menuOptions = [
+        ...menuOptions,
+        {
+          id: "removeOrder",
+          label: "Remove",
+          handler: () => {
+            setOrderDetails(prevOrder => {
+              return [...prevOrder.filter((order, idx) => !selectedRowIds.includes(idx))]
+            })
+          }
+        }
+      ];
+    }
+    return menuOptions;
+  }
+
+  // Undo/Redo Changes
+  const undoChanges = (
+    changes: CellChange<TextCell>[],
+    prevOrder: IOrderDetails[]
+  ): IOrderDetails[] => {
+    const updated = applyNewValue(changes, prevOrder, true);
+    setCellChangesIndex(cellChangesIndex - 1);
+    return updated;
+  };
+
+  const redoChanges = (
+    changes: CellChange<TextCell>[],
+    prevOrder: IOrderDetails[]
+  ): IOrderDetails[] => {
+    const updated = applyNewValue(changes, prevOrder);
+    setCellChangesIndex(cellChangesIndex + 1);
+    return updated;
+  };
+
+  const handleUndoChanges = () => {
+    if (cellChangesIndex >= 0) {
+      setOrderDetails((prevOrder) =>
+        undoChanges(cellChanges[cellChangesIndex], prevOrder)
+      );
+    }
+  };
+
+  const handleRedoChanges = () => {
+    if (cellChangesIndex + 1 <= cellChanges.length - 1) {
+      setOrderDetails((prevOrder) =>
+        redoChanges(cellChanges[cellChangesIndex + 1], prevOrder)
+      );
+    }
+  };
+
+  const handleChanges = (changes: CellChange[]) => {
+    const textCellChanges = changes.filter(
+      (change): change is CellChange<TextCell> => change.newCell.type === "text"
+    );
+
+    if (textCellChanges.length === 0) return;
+
+    // const firstChange = textCellChanges[0]; // Handle one change at a time
+    // const rowIndex = Number(firstChange.rowId);
+    // const colId = firstChange.columnId as keyof IOrderDetails;
+    // const oldValue = firstChange.previousCell.text;
+    // const newValue = firstChange.newCell.text;
+
+
+
+    // if (oldValue !== newValue) {
+    //   console.log({oldValue, newValue});
+    //   setCommentPopover({ rowIndex, colId, oldValue, newValue });
+    //   setPopoverOpen(true);
+    // }
+
+    const commentsMap: Record<string, string> = {};
+
+    const validChanges = textCellChanges.filter(change => {
+      const rowIndex = Number(change.rowId);
+      const colId = change.columnId as keyof IOrderDetails;
+      const oldValue = change.previousCell.text;
+      const newValue = change.newCell.text;
+
+      if (oldValue !== newValue) {
+        setCommentPopover({ rowIndex, colId, oldValue, newValue });
+        setCommentText("");
+        setPopoverOpen(true);
+      }
+      return false;
+    });
+
+    if (validChanges.length > 0) {
+      setOrderDetails(prevOrders => applyNewValue(validChanges, prevOrders, false, commentsMap));
+    }
+  };
+
+  const saveComment = () => {
+    if (!commentText.trim()) {
+      alert("Comment is required");
+      return;
+    }
+
+    if (commentPopover) {
+      const { rowIndex, colId, newValue } = commentPopover;
+      const changes: CellChange<TextCell>[] = [
+        {
+          rowId: rowIndex,
+          columnId: colId,
+          previousCell: { type: "text", text: orderDetails[rowIndex][colId] as any },
+          newCell: { type: "text", text: newValue },
+          type: "text"
+        },
+      ];
+
+      const commentsMap = {
+        [`${rowIndex}-${colId}`]: commentText.trim(),
+      };
+
+      setOrderDetails(prev => applyNewValue(changes, prev, false, commentsMap));
+      setCommentPopover(null);
+      setCommentText("");
+    }
+  };
+
+  return (
+    <div>
+
+      <div className="flex item-center m-4 p-6 " onKeyDown={(e) => {
+        if ((e.ctrlKey) || e.metaKey) {
+          switch (e.key) {
+            case "z":
+              handleUndoChanges();
+              return;
+            case "y":
+              handleRedoChanges();
+              return;
+          }
+        }
+      }}>
+        <ReactGrid rows={rows}
+          columns={columns}
+          onCellsChanged={handleChanges}
+          onColumnResized={handleColumnResize}
+          onContextMenu={simpleHandleContextMenu}
+          customCellTemplates={{ text: new CommentCellTemplate() }}
+          stickyTopRows={1}
+          enableRowSelection
+          enableColumnSelection
+          enableFillHandle
+          enableGroupIdRender
+          enableFullWidthHeader
+        />
+
+<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverContent className="p-4 w-64">
+          <label className="block mb-2 font-medium">
+            Enter Comment for change: 
+            <span className="text-gray-500">
+              {commentPopover?.oldValue} → {commentPopover?.newValue}
+            </span>
+          </label>
+          <input
+            type="text"
+            className="border p-2 w-full"
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                saveComment();
+              }
+            }}
+          />
+          <button
+            className="mt-2 px-3 py-1 bg-blue-500 text-white rounded"
+            onClick={saveComment}
+          >
+            Save
+          </button>
+        </PopoverContent>
+      </Popover>
+      </div>
+    </div>
+  )
+}
+
+export default Home;
