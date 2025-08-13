@@ -6,7 +6,6 @@ import "@silevis/reactgrid/styles.css";
 import orders from "@/utils/data.json";
 import moment from "moment";
 import { CommentCellTemplate } from "@/components/commentCellTemplate";
-import { Popover, PopoverContent } from "@radix-ui/react-popover";
 
 interface IOrderDetails {
   orderid: string;
@@ -87,9 +86,8 @@ function Home() {
   const [orderDetails, setOrderDetails] = useState<IOrderDetails[]>(getOrderDetails());
   const [columns, setColumns] = useState<Column[]>(getColumns());
   const [cellChangesIndex, setCellChangesIndex] = useState(() => -1);
-  const [cellChanges] = useState<CellChange<TextCell>[][]>(() => []);
+  const [cellChanges, setCellChanges] = useState<CellChange<TextCell>[][]>(() => []);
   // Track popover state
-  const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
   const [commentPopover, setCommentPopover] = useState<{
     rowIndex: number;
     colId: keyof IOrderDetails;
@@ -113,7 +111,7 @@ function Home() {
       const orderIndex = Number(change.rowId);
       const fieldName = change.columnId as keyof IOrderDetails;
       const newCell = usePrevValue ? change.previousCell : change.newCell;
-      let newValue: number | string | Date = newCell.text;
+      let newValue: any = newCell.text;
 
       // Formatting
       if (fieldName === "order_date") {
@@ -126,8 +124,10 @@ function Home() {
       (updatedOrders[orderIndex] as any)[fieldName] = newValue;
 
       if (["quantity", "unitcost"].includes(fieldName as string)) {
+        console.log({ qty: updatedOrders[orderIndex].quantity, cost: updatedOrders[orderIndex].unitcost, total:  +updatedOrders[orderIndex].quantity * updatedOrders[orderIndex].unitcost});
+
         updatedOrders[orderIndex].total =
-          +updatedOrders[orderIndex].quantity * +updatedOrders[orderIndex].unitcost;
+          (+updatedOrders[orderIndex].quantity) * (+updatedOrders[orderIndex].unitcost);
       }
 
       // Add comment if provided from handleChanges
@@ -217,20 +217,6 @@ function Home() {
 
     if (textCellChanges.length === 0) return;
 
-    // const firstChange = textCellChanges[0]; // Handle one change at a time
-    // const rowIndex = Number(firstChange.rowId);
-    // const colId = firstChange.columnId as keyof IOrderDetails;
-    // const oldValue = firstChange.previousCell.text;
-    // const newValue = firstChange.newCell.text;
-
-
-
-    // if (oldValue !== newValue) {
-    //   console.log({oldValue, newValue});
-    //   setCommentPopover({ rowIndex, colId, oldValue, newValue });
-    //   setPopoverOpen(true);
-    // }
-
     const commentsMap: Record<string, string> = {};
 
     const validChanges = textCellChanges.filter(change => {
@@ -240,9 +226,14 @@ function Home() {
       const newValue = change.newCell.text;
 
       if (oldValue !== newValue) {
-        setCommentPopover({ rowIndex, colId, oldValue, newValue });
-        setCommentText("");
-        setPopoverOpen(true);
+        const comment = prompt(`Enter a comment for change: "${oldValue}" → "${newValue}"`);
+        if (comment && comment.trim() !== "") {
+          commentsMap[`${rowIndex}-${colId}`] = comment;
+          return true;
+        } else {
+          alert("Change cancelled because comment was not provided.");
+          return false;
+        }
       }
       return false;
     });
@@ -252,91 +243,32 @@ function Home() {
     }
   };
 
-  const saveComment = () => {
-    if (!commentText.trim()) {
-      alert("Comment is required");
-      return;
-    }
-
-    if (commentPopover) {
-      const { rowIndex, colId, newValue } = commentPopover;
-      const changes: CellChange<TextCell>[] = [
-        {
-          rowId: rowIndex,
-          columnId: colId,
-          previousCell: { type: "text", text: orderDetails[rowIndex][colId] as any },
-          newCell: { type: "text", text: newValue },
-          type: "text"
-        },
-      ];
-
-      const commentsMap = {
-        [`${rowIndex}-${colId}`]: commentText.trim(),
-      };
-
-      setOrderDetails(prev => applyNewValue(changes, prev, false, commentsMap));
-      setCommentPopover(null);
-      setCommentText("");
-    }
-  };
-
   return (
-    <div>
-
-      <div className="flex item-center m-4 p-6 " onKeyDown={(e) => {
-        if ((e.ctrlKey) || e.metaKey) {
-          switch (e.key) {
-            case "z":
-              handleUndoChanges();
-              return;
-            case "y":
-              handleRedoChanges();
-              return;
-          }
+    <div className="flex item-center m-4 p-6 " onKeyDown={(e) => {
+      if ((e.ctrlKey) || e.metaKey) {
+        switch (e.key) {
+          case "z":
+            handleUndoChanges();
+            return;
+          case "y":
+            handleRedoChanges();
+            return;
         }
-      }}>
-        <ReactGrid rows={rows}
-          columns={columns}
-          onCellsChanged={handleChanges}
-          onColumnResized={handleColumnResize}
-          onContextMenu={simpleHandleContextMenu}
-          customCellTemplates={{ text: new CommentCellTemplate() }}
-          stickyTopRows={1}
-          enableRowSelection
-          enableColumnSelection
-          enableFillHandle
-          enableGroupIdRender
-          enableFullWidthHeader
-        />
-
-<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverContent className="p-4 w-64">
-          <label className="block mb-2 font-medium">
-            Enter Comment for change: 
-            <span className="text-gray-500">
-              {commentPopover?.oldValue} → {commentPopover?.newValue}
-            </span>
-          </label>
-          <input
-            type="text"
-            className="border p-2 w-full"
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                saveComment();
-              }
-            }}
-          />
-          <button
-            className="mt-2 px-3 py-1 bg-blue-500 text-white rounded"
-            onClick={saveComment}
-          >
-            Save
-          </button>
-        </PopoverContent>
-      </Popover>
-      </div>
+      }
+    }}>
+      <ReactGrid rows={rows}
+        columns={columns}
+        onCellsChanged={handleChanges}
+        onColumnResized={handleColumnResize}
+        onContextMenu={simpleHandleContextMenu}
+        customCellTemplates={{ text: new CommentCellTemplate() }}
+        stickyTopRows={1}
+        enableRowSelection
+        enableColumnSelection
+        enableFillHandle
+        enableGroupIdRender
+        enableFullWidthHeader
+      />
     </div>
   )
 }
