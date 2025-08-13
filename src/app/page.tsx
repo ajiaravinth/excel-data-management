@@ -96,8 +96,8 @@ function Home() {
   } | null>(null);
 
   const [commentText, setCommentText] = useState("");
-
-  const rows = getRows(orderDetails);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateFilter, setDateFilter] = useState<"all" | "quarter" | "half" | "year">("all");
 
   const applyNewValue = (
     changes: CellChange<TextCell>[],
@@ -124,10 +124,10 @@ function Home() {
       (updatedOrders[orderIndex] as any)[fieldName] = newValue;
 
       if (["quantity", "unitcost"].includes(fieldName as string)) {
-        console.log({ qty: updatedOrders[orderIndex].quantity, cost: updatedOrders[orderIndex].unitcost, total:  +updatedOrders[orderIndex].quantity * updatedOrders[orderIndex].unitcost});
+        console.log({ qty: updatedOrders[orderIndex].quantity, cost: updatedOrders[orderIndex].unitcost, total: +updatedOrders[orderIndex].quantity * updatedOrders[orderIndex].unitcost });
 
         updatedOrders[orderIndex].total =
-          (+updatedOrders[orderIndex].quantity) * (+updatedOrders[orderIndex].unitcost);
+          +((+updatedOrders[orderIndex].quantity) * (+updatedOrders[orderIndex].unitcost)).toFixed(2);
       }
 
       // Add comment if provided from handleChanges
@@ -243,6 +243,37 @@ function Home() {
     }
   };
 
+  const filteredOrders = orderDetails.filter(order => {
+    // Search filter
+    const searchMatch = searchTerm
+      ? Object.values(order).some(val =>
+        String(val).toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      : true;
+
+    // Date filter
+    const orderMonth = moment(order.order_date).month(); // 0-based month
+    const orderQuarter = Math.floor(orderMonth / 3) + 1;
+    const orderHalf = orderMonth < 6 ? 1 : 2;
+
+    let dateMatch = true;
+    if (dateFilter === "quarter") {
+      const currentQuarter = Math.floor(moment().month() / 3) + 1;
+      dateMatch = orderQuarter === currentQuarter;
+    } else if (dateFilter === "half") {
+      const currentHalf = moment().month() < 6 ? 1 : 2;
+      dateMatch = orderHalf === currentHalf;
+    } else if (dateFilter === "year") {
+      dateMatch = moment(order.order_date).year() === moment().year();
+    } else if (!["quarter", "half", "year", "all"].includes(dateFilter)) {
+      dateMatch = moment(order.order_date).year() === +dateFilter;
+    }
+
+    return searchMatch && dateMatch;
+  });
+
+  const rows = getRows(filteredOrders);
+
   return (
     <div className="flex item-center m-4 p-6 " onKeyDown={(e) => {
       if ((e.ctrlKey) || e.metaKey) {
@@ -256,19 +287,44 @@ function Home() {
         }
       }
     }}>
-      <ReactGrid rows={rows}
-        columns={columns}
-        onCellsChanged={handleChanges}
-        onColumnResized={handleColumnResize}
-        onContextMenu={simpleHandleContextMenu}
-        customCellTemplates={{ text: new CommentCellTemplate() }}
-        stickyTopRows={1}
-        enableRowSelection
-        enableColumnSelection
-        enableFillHandle
-        enableGroupIdRender
-        enableFullWidthHeader
-      />
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex gap-4">
+          <input
+            type="text"
+            placeholder="Search..."
+            className="border p-2 rounded w-64"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+          <select
+            className="border p-2 rounded"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value as any)}
+          >
+            <option value="all">All Dates</option>
+            <option value="quarter">Quarter</option>
+            <option value="half">Half Year</option>
+            <option value="year">This Year</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+          </select>
+        </div>
+
+
+        <ReactGrid rows={rows}
+          columns={columns}
+          onCellsChanged={handleChanges}
+          onColumnResized={handleColumnResize}
+          onContextMenu={simpleHandleContextMenu}
+          customCellTemplates={{ text: new CommentCellTemplate() }}
+          stickyTopRows={1}
+          enableRowSelection
+          enableColumnSelection
+          enableFillHandle
+          enableGroupIdRender
+          enableFullWidthHeader
+        />
+      </div>
     </div>
   )
 }
