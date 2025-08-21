@@ -79,7 +79,6 @@ export class CommentCellTemplate implements CellTemplate<CommentTextCell> {
                     if (e.key === "Enter") {
                         onCellChanged(this.getCompatibleCell({ ...cell, text: (e.currentTarget as HTMLInputElement).value }), true);
                     } else if (e.key === "Escape") {
-                        // cancel: commit original value
                         onCellChanged(this.getCompatibleCell({ ...cell, text: cell.text }), true);
                     } else {
                         // prevent grid from handling navigation / typing propagation while editing

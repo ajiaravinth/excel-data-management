@@ -6,6 +6,11 @@ import "@silevis/reactgrid/styles.css";
 import orders from "@/utils/data.json";
 import moment from "moment";
 import { CommentCellTemplate } from "@/components/commentCellTemplate";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { InputText } from "primereact/inputtext";
+import { SelectButton } from "primereact/selectbutton";
+import { Dropdown } from "primereact/dropdown";
+import CommentDialog from "@/components/CommentDialog";
 
 interface IOrderDetails {
   orderid: string;
@@ -17,6 +22,20 @@ interface IOrderDetails {
   unitcost: number;
   total: number;
   comment?: Partial<Record<keyof Omit<IOrderDetails, 'comment'>, string>> & Record<string, string>;
+}
+
+enum RangeOptions {
+  CY = "CY", //current year
+  All = "ALL", // All data
+  QY = "QY", //Quaterly
+  HY = "HY", // Half yearly
+  Prev1 = "2024", // 2024 records
+  Prev2 = "2023", // 2023 records
+}
+
+interface IFilterByDateRangeOptions {
+  name: string;
+  code: string;
 }
 
 export interface CommentTextCell extends TextCell {
@@ -82,22 +101,43 @@ const getRows = (orders: IOrderDetails[]): Row[] => [
   }))
 ];
 
+const dateRageFilter: IFilterByDateRangeOptions[] = [
+  { name: 'All', code: 'ALL' },
+  { name: 'Quarterly', code: 'QY' },
+  { name: 'Half Yealy', code: 'HY' },
+  { name: 'Current Year', code: 'CY' },
+  { name: '2024', code: '2024' },
+  { name: '2023', code: '2023' },
+];
+
 function Home() {
   const [orderDetails, setOrderDetails] = useState<IOrderDetails[]>(getOrderDetails());
   const [columns, setColumns] = useState<Column[]>(getColumns());
   const [cellChangesIndex, setCellChangesIndex] = useState(() => -1);
   const [cellChanges, setCellChanges] = useState<CellChange<TextCell>[][]>(() => []);
-  // Track popover state
-  const [commentPopover, setCommentPopover] = useState<{
-    rowIndex: number;
-    colId: keyof IOrderDetails;
-    oldValue: string;
-    newValue: string;
-  } | null>(null);
+  // Track popover state 
 
-  const [commentText, setCommentText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState<"all" | "quarter" | "half" | "year">("all");
+  const [dateFilter, setDateFilter] = useState<IFilterByDateRangeOptions>({ name: "All", code: RangeOptions.All });
+
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [comment, setComment] = useState("");
+  const [pendingChange, setPendingChange] = React.useState<CellChange<TextCell> | null>(null);
+
+  //Graph
+  // const monthlyData = React.useMemo(() => {
+  //   const monthlyTotals: Record<string, number> = {};
+
+  //   orderDetails.forEach(order => {
+  //     const month = moment(order.order_date).format("MMM YYYY");
+  //     monthlyTotals[month] = (monthlyTotals[month] || 0) + order.total;
+  //   });
+
+  //   return Object.entries(monthlyTotals).map(([month, total]) => ({
+  //     month,
+  //     total,
+  //   }));
+  // }, [orderDetails]);
 
   const applyNewValue = (
     changes: CellChange<TextCell>[],
@@ -217,30 +257,76 @@ function Home() {
 
     if (textCellChanges.length === 0) return;
 
-    const commentsMap: Record<string, string> = {};
+    const firstChange = textCellChanges[0];
+    const oldValue = firstChange.previousCell.text;
+    const newValue = firstChange.newCell.text;
 
-    const validChanges = textCellChanges.filter(change => {
-      const rowIndex = Number(change.rowId);
-      const colId = change.columnId as keyof IOrderDetails;
-      const oldValue = change.previousCell.text;
-      const newValue = change.newCell.text;
+    if (oldValue !== newValue) {
+      setPendingChange(firstChange);
 
-      if (oldValue !== newValue) {
-        const comment = prompt(`Enter a comment for change: "${oldValue}" → "${newValue}"`);
-        if (comment && comment.trim() !== "") {
-          commentsMap[`${rowIndex}-${colId}`] = comment;
-          return true;
-        } else {
-          alert("Change cancelled because comment was not provided.");
-          return false;
-        }
-      }
-      return false;
-    });
+      // update orderDetails so grid shows edited value
+      setOrderDetails((prev) =>
+        prev.map((row, idx) =>
+          idx === Number(firstChange.rowId)
+            ? { ...row, [firstChange.columnId]: newValue }
+            : row
+        )
+      );
 
-    if (validChanges.length > 0) {
-      setOrderDetails(prevOrders => applyNewValue(validChanges, prevOrders, false, commentsMap));
+      setIsOpen(true);
     }
+  };
+
+  const handleSave = () => {
+    if (pendingChange && comment.trim()) {
+      const rowIndex = Number(pendingChange.rowId);
+      const colId = pendingChange.columnId as keyof IOrderDetails;
+
+      const commentsMap: Record<string, string> = {
+        [`${rowIndex}-${colId}`]: comment,
+      };
+
+      setOrderDetails((prevOrders) =>
+        applyNewValue([pendingChange], prevOrders, false, commentsMap)
+      );
+    } else {
+      if (pendingChange) {
+        const rowIndex = Number(pendingChange.rowId);
+        const oldValue = pendingChange.previousCell.text;
+
+        setOrderDetails((prev) =>
+          prev.map((row, idx) =>
+            idx === rowIndex
+              ? { ...row, [pendingChange.columnId]: oldValue }
+              : row
+          )
+        );
+      }
+    }
+    cleanup();
+  }
+
+  const handleCancel = () => {
+    if (pendingChange) {
+      const rowIndex = Number(pendingChange.rowId);
+      const oldValue = pendingChange.previousCell.text;
+
+      // rollback to old value
+      setOrderDetails((prev) =>
+        prev.map((row, idx) =>
+          idx === rowIndex
+            ? { ...row, [pendingChange.columnId]: oldValue }
+            : row
+        )
+      );
+    }
+    cleanup();
+  };
+
+  const cleanup = () => {
+    setIsOpen(false);
+    setComment("");
+    setPendingChange(null);
   };
 
   const filteredOrders = orderDetails.filter(order => {
@@ -251,28 +337,29 @@ function Home() {
       )
       : true;
 
-    // Date filter
-    const orderMonth = moment(order.order_date).month(); // 0-based month
+    const orderMonth = moment(order.order_date).month();
     const orderQuarter = Math.floor(orderMonth / 3) + 1;
     const orderHalf = orderMonth < 6 ? 1 : 2;
+    const filterCode = dateFilter.code;
 
     let dateMatch = true;
-    if (dateFilter === "quarter") {
+    if (filterCode === RangeOptions.QY) {
       const currentQuarter = Math.floor(moment().month() / 3) + 1;
       dateMatch = orderQuarter === currentQuarter;
-    } else if (dateFilter === "half") {
+    } else if (filterCode === RangeOptions.HY) {
       const currentHalf = moment().month() < 6 ? 1 : 2;
       dateMatch = orderHalf === currentHalf;
-    } else if (dateFilter === "year") {
+    } else if (filterCode === RangeOptions.CY) {
       dateMatch = moment(order.order_date).year() === moment().year();
-    } else if (!["quarter", "half", "year", "all"].includes(dateFilter)) {
-      dateMatch = moment(order.order_date).year() === +dateFilter;
+    } else if (![RangeOptions.All, RangeOptions.CY, RangeOptions.QY, RangeOptions.HY].includes(filterCode as RangeOptions)) {
+      dateMatch = moment(order.order_date).year() === +filterCode;
     }
-
     return searchMatch && dateMatch;
   });
 
   const rows = getRows(filteredOrders);
+
+
 
   return (
     <div className="flex item-center m-4 p-6 " onKeyDown={(e) => {
@@ -287,27 +374,33 @@ function Home() {
         }
       }
     }}>
-      <div className="flex flex-col gap-4 mb-4">
+      <div className="flex flex-col gap-4 mb-4 w-full">
+        {/* {monthlyData.length > 0 && (
+          <div className="bg-white rounded shadow p-4">
+            <h2 className="text-lg font-semibold mb-2">Monthly Order Ratio</h2>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )} */}
+
+
         <div className="flex gap-4">
-          <input
+          <InputText
             type="text"
             placeholder="Search..."
-            className="border p-2 rounded w-64"
+            className="border p-2 rounded w-100"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
-          <select
-            className="border p-2 rounded"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value as any)}
-          >
-            <option value="all">All Dates</option>
-            <option value="quarter">Quarter</option>
-            <option value="half">Half Year</option>
-            <option value="year">This Year</option>
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-          </select>
+          <Dropdown value={dateFilter} onChange={e => setDateFilter(e.target.value)} options={dateRageFilter} optionLabel="name"
+            placeholder="Select a Date" className="w-100" />
         </div>
 
 
@@ -324,6 +417,119 @@ function Home() {
           enableGroupIdRender
           enableFullWidthHeader
         />
+
+        <CommentDialog
+          visible={isOpen}
+          onHide={() => setIsOpen(false)}
+          pendingChange={pendingChange}
+          comment={comment}
+          setComment={setComment}
+          handleSave={handleSave}
+          handleCancel={handleCancel}
+        />
+
+        {/* {isOpen && pendingChange && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-96">
+              <h2 className="text-lg font-semibold mb-4">Add Comment</h2>
+              <p className="text-sm mb-2">
+                <strong>Editing:</strong> {pendingChange.columnId}
+              </p>
+              <p className="text-sm mb-4">
+                <strong>Old Value:</strong> {pendingChange.previousCell.text} <br />
+                <strong>New Value:</strong> {pendingChange.newCell.text}
+              </p>
+
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="border p-2 rounded w-full h-24 mb-4"
+                placeholder="Enter your comment..."
+              />
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={handleCancel}
+                  className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )} */}
+        {/* {isOpen && popoverPosition && (
+          <div
+            style={{
+              position: "absolute",
+              top: popoverPosition.top,
+              left: popoverPosition.left,
+              zIndex: 9999,
+            }}
+          >
+            <Popover open={true}>
+              <PopoverContent className="rounded-md bg-white shadow-lg p-2">
+                <input
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Enter comment"
+                  className="border p-1 rounded"
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                  <button onClick={handleSave} className="px-2 py-1 bg-green-500 text-white rounded">
+                    Save
+                  </button>
+                  <button onClick={handleCancel} className="px-2 py-1 bg-gray-300 rounded">
+                    Cancel
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )} */}
+        {/* 
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverPortal>
+            <PopoverContent
+              className="bg-white p-4 rounded shadow-md border w-72"
+              side="bottom"
+              align="center"
+            >
+              <h3 className="font-semibold mb-2">Enter Comment</h3>
+              <input
+                type="text"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="border rounded p-2 w-full mb-3"
+                placeholder="Why did you change this?"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSave();
+                }}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={handleCancel}
+                  className="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Save
+                </button>
+              </div>
+              <PopoverArrow className="fill-white" />
+            </PopoverContent>
+          </PopoverPortal>
+        </Popover> */}
       </div>
     </div>
   )
